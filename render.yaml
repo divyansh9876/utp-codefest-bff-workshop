@@ -11,7 +11,7 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: BFF_URL
-        sync: false
+        value: https://utp-codefest-bff.onrender.com
       - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
         sync: false
 
