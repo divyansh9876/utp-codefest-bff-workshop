@@ -1,4 +1,5 @@
 services:
+  # Next.js frontend (this repo). /api/* is proxied to the Spring Boot BFF via BFF_URL.
   - type: web
     name: utp-codefest-bff-workshop
     runtime: node
@@ -9,11 +10,25 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
-      - key: MONGODB_URI
+      - key: BFF_URL
         sync: false
-      - key: JWT_SECRET
-        generateValue: true
-      - key: JWT_EXPIRES_IN
-        value: 1h
       - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
         sync: false
+
+  # Spring Boot BFF: uncomment once its repo exists (deployed from its Dockerfile).
+  # - type: web
+  #   name: utp-codefest-bff
+  #   runtime: docker
+  #   repo: https://github.com/divyansh9876/utp-codefest-bff
+  #   plan: free
+  #   region: singapore
+  #   healthCheckPath: /api/health
+  #   envVars:
+  #     - key: MONGODB_URI
+  #       sync: false
+  #     - key: JWT_SECRET
+  #       generateValue: true
+  #     - key: JWT_EXPIRATION_MINUTES
+  #       value: "60"
+  #     - key: GOOGLE_CLIENT_ID
+  #       sync: false

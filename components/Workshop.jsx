@@ -10,7 +10,7 @@ import CrudTab from "./tabs/CrudTab";
 import AuthTab from "./tabs/AuthTab";
 import DeployTab from "./tabs/DeployTab";
 import { PHASES, STORAGE_KEYS } from "@/lib/constants";
-import { CHECKLIST_TOTAL } from "@/lib/checklist";
+import { CHECKLIST, CHECKLIST_TOTAL } from "@/lib/checklist";
 import { goToTab, useHash, useLocalStorage } from "@/lib/hooks";
 
 const PANELS = {
@@ -26,6 +26,7 @@ const DB_PILL = {
   connected: { tone: "success", label: "DB connected" },
   error: { tone: "danger", label: "DB error" },
   notbuilt: { tone: "warning", label: "/api/health missing" },
+  offline: { tone: "danger", label: "BFF offline" },
 };
 
 function StatusPills() {
@@ -58,7 +59,7 @@ function StatusPills() {
 function Tabs({ activeId }) {
   const { db, projects, isAuthed } = useWorkshop();
   const [checklist] = useLocalStorage(STORAGE_KEYS.checklist, {});
-  const checked = Object.values(checklist).filter(Boolean).length;
+  const checked = CHECKLIST.flatMap((s) => s.items).filter((i) => checklist[i.id]).length;
 
   const done = {
     architecture: db.state === "connected",
@@ -142,7 +143,7 @@ function Shell() {
             </span>
             <span className="brand-text">
               <strong>UTP CodeFest</strong>
-              <span>BFF Workshop · Next.js + MongoDB + JWT</span>
+              <span>BFF Workshop · Spring Boot + MongoDB + JWT</span>
             </span>
           </div>
           <StatusPills />
@@ -158,7 +159,7 @@ function Shell() {
       </main>
 
       <footer className="container footer">
-        Built for UTP CodeFest · Backend-for-Frontend with Next.js Route Handlers, MongoDB Atlas &amp; JWT ·
+        Built for UTP CodeFest · Next.js UI + Spring Boot BFF, MongoDB Atlas &amp; JWT ·
         Press <kbd className="kbd">1</kbd>–<kbd className="kbd">4</kbd> to switch phases
       </footer>
 

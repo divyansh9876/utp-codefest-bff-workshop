@@ -28,7 +28,7 @@ export default function WorkshopProvider({ children }) {
 
   // ---- Phase 1: database health ---------------------------------------
   const [db, setDb] = useState({
-    state: "idle", // idle | checking | connected | error | notbuilt
+    state: "idle", // idle | checking | connected | error | notbuilt | offline
     status: null,
     data: null,
     error: null,
@@ -42,7 +42,7 @@ export default function WorkshopProvider({ children }) {
     const r = await api("/api/health");
     const connected =
       r.ok && (r.data?.db === "connected" || r.data?.status === "ok" || r.data?.connected === true);
-    const state = r.notBuilt ? "notbuilt" : connected ? "connected" : "error";
+    const state = r.offline ? "offline" : r.notBuilt ? "notbuilt" : connected ? "connected" : "error";
     setDb((d) => ({
       state,
       status: r.status,
@@ -57,7 +57,7 @@ export default function WorkshopProvider({ children }) {
 
   // ---- Phase 2: projects ----------------------------------------------
   const [projects, setProjects] = useState({
-    state: "idle", // idle | loading | ready | notbuilt | error
+    state: "idle", // idle | loading | ready | notbuilt | offline | error
     items: [],
     error: null,
   });
@@ -70,7 +70,7 @@ export default function WorkshopProvider({ children }) {
     } else {
       setProjects((p) => ({
         ...p,
-        state: r.notBuilt ? "notbuilt" : "error",
+        state: r.offline ? "offline" : r.notBuilt ? "notbuilt" : "error",
         error: r.error,
       }));
     }

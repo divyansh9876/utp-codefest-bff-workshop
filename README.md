@@ -1,78 +1,86 @@
 # UTP CodeFest · BFF Workshop
 
-Interactive, pre-built frontend for a 2-hour **Backend-for-Frontend** workshop with Next.js Route Handlers, MongoDB Atlas, bcrypt and JWT.
+Interactive, pre-built **Next.js frontend** for a 2-hour **Backend-for-Frontend** workshop. The BFF itself is live-coded in **Java 21 + Spring Boot 4.1** with MongoDB Atlas, BCrypt, JWT and Google sign-in.
 
-The UI replaces slides. On stream you only live-code the BFF files under `app/api/`, `lib/` and `models/`. Each tab lights up as soon as its routes respond.
+The UI replaces slides. Every phase explains **what** you build and **why**: a goal, the reasoning behind each design choice, an analogy, common pitfalls, and a "why" note on every live-coding step. Each tab lights up as soon as the matching Spring Boot endpoint responds.
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/divyansh9876/utp-codefest-bff-workshop)
+
+## How the pieces fit
+
+```
+Browser ──/api/*──▶ Next.js (this repo) ──proxy──▶ Spring Boot BFF :8080 ──▶ MongoDB Atlas
+                    next.config.mjs rewrites        controllers · services · repositories
+```
+
+The browser only ever calls `/api/*` on the frontend's origin. `next.config.mjs` forwards those requests to the Spring Boot BFF at `BFF_URL`, so you don't need any CORS configuration. All secrets live in the BFF; the frontend has none.
 
 ## Run it
 
 ```bash
+# Frontend (this repo)
 npm install
-cp .env.example .env.local   # fill in MONGODB_URI, JWT_SECRET, NEXT_PUBLIC_GOOGLE_CLIENT_ID
-npm run dev
+cp .env.example .env.local      # BFF_URL, NEXT_PUBLIC_GOOGLE_CLIENT_ID
+npm run dev                     # http://localhost:3000
+
+# Spring Boot BFF (separate folder, built during the workshop)
+./mvnw spring-boot:run          # http://localhost:8080
 ```
 
-Open http://localhost:3000. Press `1` to `4` to switch phases.
-
-## Login providers
-
-Both providers end in the **same JWT**, so protected routes only ever check one kind of token.
-
-- **Local**: email + password. `bcryptjs` hashes on register; login compares, then signs a JWT.
-- **Google**: the Google Identity Services button gives the browser a Google-signed ID token (`credential`). The browser posts it to `/api/auth/google`. The BFF verifies it with `google-auth-library` (signature + `aud` = your client ID), finds or creates the user, and signs our JWT.
-
-### Google Cloud setup (about 5 minutes)
-
-1. Google Cloud Console → APIs & Services → **OAuth consent screen**: set it up as External and add yourself as a test user.
-2. **Credentials → Create credentials → OAuth client ID**, application type **Web application**.
-3. Under **Authorized JavaScript origins**, add `http://localhost`, `http://localhost:3000`, and your Render URL (e.g. `https://utp-codefest-bff-workshop.onrender.com`).
-4. Copy the client ID into `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, then restart `npm run dev`.
-
-The client ID is public by design; no client secret is needed for this flow. Without a client ID, the UI shows a disabled Google button with a setup hint.
+Press `1` to `4` to switch phases. The header pill shows **BFF offline** until Spring Boot is running.
 
 ## The four phases
 
-| Tab | Time | You live-code | Proof it works |
+| Tab | Time | You live-code in Spring Boot | Proof it works |
 | --- | --- | --- | --- |
-| 1. Architecture & DB | 30m | `lib/mongodb.js`, `app/api/health/route.js` | Ping Database badge turns green |
-| 2. CRUD Playground | 45m | `models/Project.js`, `app/api/projects/route.js` | Submitted project appears in the feed |
-| 3. Auth & JWT Vault | 30m | `models/User.js`, `lib/auth.js`, `app/api/auth/register/route.js`, `app/api/auth/login/route.js`, `app/api/auth/google/route.js`, `app/api/projects/[id]/route.js` | Token decodes in the inspector, delete buttons unlock |
-| 4. Deploy & Security | 15m | Nothing: walk through the checklist and deploy to Render | Live URL passes the smoke test |
+| 1. Architecture & DB | 30m | `pom.xml`, `application.yml`, `.env`, `HealthController` | Ping Database badge turns green |
+| 2. CRUD Playground | 45m | `Project`, `ProjectRepository`, `ProjectService`, `ProjectController`, `ApiExceptionHandler` | Submitted project appears in the feed |
+| 3. Auth & JWT Vault | 30m | `User`, `UserRepository`, `JwtService`, `AuthController` (local + Google), `JwtAuthFilter` | Token decodes in the inspector, delete buttons unlock |
+| 4. Deploy & Security | 15m | `Dockerfile`, env vars, Render | Live URL passes the smoke test |
+
+Reference code for every file is in the collapsed **Presenter cheat sheet** at the bottom of tabs 1–3.
 
 ## API contract the UI expects
 
 | Method | Path | Body | Success response |
 | --- | --- | --- | --- |
 | GET | `/api/health` | none | `200 { status: "ok", db: "connected", dbName, latencyMs }` |
-| GET | `/api/projects` | none | `200 { projects: [...] }` (a bare array also works) |
+| GET | `/api/projects` | none | `200 { projects: [...] }` |
 | POST | `/api/projects` | `{ title, description, category, teamName?, repoUrl? }` | `201 { project }`, or `400 { error }` |
-| DELETE | `/api/projects/[id]` | Header `Authorization: Bearer <jwt>` | `200`, `401` without a valid token |
+| DELETE | `/api/projects/{id}` | Header `Authorization: Bearer <jwt>` | `200`, or `401` without a valid token |
 | POST | `/api/auth/register` | `{ name, email, password }` | `201 { user }` (never the hash) |
 | POST | `/api/auth/login` | `{ email, password }` | `200 { token, user }`, or `401 { error }` |
 | POST | `/api/auth/google` | `{ credential }` (Google ID token) | `200 { token, user }`, or `401 { error }` |
 
-Errors should be JSON `{ error: "message" }`; the UI shows that message to the user.
+Errors should be JSON `{ "error": "message" }` (the `ApiExceptionHandler` in the cheat sheet does this). The UI recognises:
 
-Until a route exists, Next.js serves its HTML 404 page and the UI shows a friendly "route not built yet" state instead of crashing.
+- Spring's default 404 and 405 responses as "endpoint not mapped yet".
+- Proxy failures as "BFF offline".
 
-## Presenter helpers built into the UI
+## Login providers
 
-- **Workshop clock** (top right): a 2-hour timer split into the four phases, showing time left in the current phase.
-- **Live-coding steps** on each tab: tick them off as you go. The final step auto-completes when the endpoint works.
-- **Presenter cheat sheet** (collapsed at the bottom of tabs 1–3): reference code for every BFF file, in case the live demo breaks.
-- **BFF Network Inspector** (bottom dock): every request the UI makes, with status, timing, Bearer flag, and request/response bodies. Passwords are masked.
+Both providers end in the **same JWT**, signed by `JwtService`, so `JwtAuthFilter` only ever verifies one kind of token.
 
-`mongoose`, `bcryptjs`, `jsonwebtoken` and `google-auth-library` are already installed, so nobody has to run `npm install` on stream.
+- **Local**: `BCryptPasswordEncoder.encode()` on register, `matches()` on login, then a JWT.
+- **Google**: the Google Identity Services button gives the browser a Google-signed ID token. Spring Boot checks it with `GoogleIdTokenVerifier` (signature, expiry, and audience = your client ID), finds or creates the user, then signs our JWT.
+
+### Google Cloud setup
+
+1. Google Cloud Console → APIs & Services → **OAuth consent screen**: set it up as External and add yourself as a test user.
+2. **Credentials → Create credentials → OAuth client ID**, type **Web application**.
+3. Under **Authorized JavaScript origins**, add the **frontend** URLs: `http://localhost`, `http://localhost:3000`, and your frontend's `onrender.com` URL.
+4. Put the client ID in both places: `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (frontend) and `GOOGLE_CLIENT_ID` (BFF). It's public; no client secret is needed.
 
 ## Deploy to Render
 
-`render.yaml` is a Render Blueprint: a free Node web service in Singapore that builds with `npm ci && npm run build` and starts with `npm start`.
+1. **BFF**: New → Web Service → the bff repo, with **Docker** (Dockerfile in the cheat sheet). Set the Health Check Path to `/api/health` and the env vars `MONGODB_URI`, `JWT_SECRET`, `JWT_EXPIRATION_MINUTES`, `GOOGLE_CLIENT_ID`. `application.yml` uses `server.port=${PORT:8080}` so Render can reach it.
+2. **Frontend**: click **Deploy to Render** above (it uses `render.yaml`). Set `BFF_URL` to the BFF's `onrender.com` URL, and set `NEXT_PUBLIC_GOOGLE_CLIENT_ID`.
+3. In MongoDB Atlas → Network Access, allow `0.0.0.0/0`, because Render's free tier has no static IPs.
 
-1. Click **Deploy to Render** above, or go to Render → New → Blueprint → pick this repo.
-2. Fill in `MONGODB_URI` and `NEXT_PUBLIC_GOOGLE_CLIENT_ID` when prompted. `JWT_SECRET` is generated for you.
-3. In MongoDB Atlas → Network Access, allow `0.0.0.0/0`, because Render's free tier has no static outbound IPs.
-4. Add the `onrender.com` URL to the Google client's Authorized JavaScript origins.
+`BFF_URL` and `NEXT_PUBLIC_*` are read at **build time**. After changing them, run **Manual Deploy → Clear build cache & deploy**. Free instances sleep after about 15 minutes idle, and Spring Boot can take 1–2 minutes to wake up.
 
-`NEXT_PUBLIC_*` values are compiled into the build. After changing one, run **Manual Deploy → Clear build cache & deploy**. Free instances sleep after about 15 minutes idle, so the first request after that takes 30–60 seconds.
+## Presenter helpers built into the UI
+
+- **Why panels**: a goal, reasons, an analogy and pitfalls for each phase, plus a toggleable "why" note on every live-coding step and checklist item.
+- **Workshop clock**: a 2-hour timer split into the four phases.
+- **BFF Network Inspector**: every request with its status, timing and Bearer flag, plus the request and response bodies. Passwords are masked.

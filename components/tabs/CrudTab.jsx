@@ -12,9 +12,16 @@ import {
   EndpointRow,
   LiveCodeSteps,
   PhaseHeader,
+  WhyPhase,
 } from "../ui";
 import { CATEGORIES, CATEGORY_COLORS, PHASES, SAMPLE_PROJECTS } from "@/lib/constants";
-import { PROJECTS_ROUTE, PROJECT_MODEL } from "@/lib/snippets";
+import {
+  EXCEPTION_HANDLER,
+  PROJECT_CONTROLLER,
+  PROJECT_ENTITY,
+  PROJECT_REPOSITORY,
+  PROJECT_SERVICE,
+} from "@/lib/snippets";
 import { goToTab, timeAgo, useNow } from "@/lib/hooks";
 import { projectId } from "@/lib/api";
 
@@ -22,13 +29,13 @@ const PHASE = PHASES[1];
 const EMPTY_FORM = { title: "", description: "", category: CATEGORIES[0], teamName: "", repoUrl: "" };
 
 const SCHEMA_FIELDS = [
-  { name: "title", type: "String", rules: "required · trim · max 80" },
-  { name: "description", type: "String", rules: "required · trim · max 500" },
-  { name: "category", type: "String", rules: "required · enum" },
-  { name: "teamName", type: "String", rules: "optional · max 60" },
+  { name: "title", type: "String", rules: "@NotBlank @Size(max = 80)" },
+  { name: "description", type: "String", rules: "@NotBlank @Size(max = 500)" },
+  { name: "category", type: "String", rules: "@NotBlank @Pattern(one of the categories)" },
+  { name: "teamName", type: "String", rules: "@Size(max = 60), optional" },
   { name: "repoUrl", type: "String", rules: "optional" },
-  { name: "_id", type: "ObjectId", rules: "auto", auto: true },
-  { name: "createdAt / updatedAt", type: "Date", rules: "timestamps: true", auto: true },
+  { name: "id", type: "String", rules: "@Id → MongoDB _id, generated", auto: true },
+  { name: "createdAt", type: "Instant", rules: "set by ProjectService", auto: true },
 ];
 
 export function CategoryTag({ category }) {
@@ -66,7 +73,7 @@ export function DeleteButton({ project, compact = false }) {
         const r = await deleteProject(id);
         setBusy(false);
         if (r.ok) notify(`Deleted "${project.title}"`, "success");
-        else if (r.notBuilt) notify("DELETE /api/projects/[id] isn't built yet", "warning");
+        else if (r.notBuilt) notify("DELETE /api/projects/{id} isn't mapped yet", "warning");
         else notify(r.error || "Delete failed", "danger");
       }}
     >
@@ -101,8 +108,10 @@ function ProjectForm() {
     if (r.ok) {
       notify(`"${form.title || "Project"}" saved to MongoDB`, "success");
       setForm(EMPTY_FORM);
+    } else if (r.offline) {
+      notify("Spring Boot BFF isn't running", "danger");
     } else if (r.notBuilt) {
-      notify("POST /api/projects isn't built yet", "warning");
+      notify("POST /api/projects isn't mapped yet", "warning");
     } else {
       notify(r.error || "Submit failed", "danger");
     }
@@ -180,16 +189,18 @@ function ProjectForm() {
 
       {result && !result.ok && (
         <Callout tone={result.notBuilt ? "warning" : "danger"} title={`${result.status || "Network"} · ${result.error}`}>
-          {result.notBuilt
-            ? "Create models/Project.js and app/api/projects/route.js with a POST export."
+          {result.offline
+            ? "Start the BFF: ./mvnw spring-boot:run in the bff folder."
+            : result.notBuilt
+            ? "Add a @PostMapping method to ProjectController (@RequestMapping(\"/api/projects\"))."
             : result.status === 400
               ? "Validation is working — the BFF rejected bad input before it hit the database."
-              : "Check the terminal running next dev for the stack trace."}
+              : "Check the Spring Boot console for the stack trace."}
         </Callout>
       )}
       {result?.ok && (
         <Callout tone="success" title={`${result.status} Created in ${result.ms}ms`}>
-          The project was saved to MongoDB and returned with its new <code>_id</code>.
+          The project was saved to MongoDB and returned with its new <code>id</code> (stored as <code>_id</code>).
         </Callout>
       )}
     </Card>
@@ -245,9 +256,20 @@ function ProjectFeed() {
       {projects.state === "notbuilt" && (
         <div className="empty">
           <Icon name="file" size={28} />
-          <strong>GET /api/projects isn&apos;t built yet</strong>
+          <strong>GET /api/projects isn&apos;t mapped yet</strong>
           <p>
-            Live-code <code>models/Project.js</code> and <code>app/api/projects/route.js</code>, then hit Refresh.
+            Live-code <code>Project</code>, <code>ProjectRepository</code>, <code>ProjectService</code> and{" "}
+            <code>ProjectController</code>, restart Spring Boot, then hit Refresh.
+          </p>
+        </div>
+      )}
+
+      {projects.state === "offline" && (
+        <div className="empty">
+          <Icon name="server" size={28} />
+          <strong>Spring Boot BFF is offline</strong>
+          <p>
+            Run <code>./mvnw spring-boot:run</code> in the <code>bff</code> folder, then hit Refresh.
           </p>
         </div>
       )}
@@ -343,8 +365,47 @@ export default function CrudTab() {
       <PhaseHeader
         phase={PHASE}
         title="Core CRUD Playground"
-        lead="Define a Mongoose schema, then expose it through GET and POST route handlers. The form and feed below are already wired — they light up the moment your routes respond."
-        files={["models/Project.js", "app/api/projects/route.js"]}
+        lead="Model a Project document, let Spring Data generate the repository, and expose GET and POST through a controller → service → repository stack. The form and feed below are already wired: they light up the moment your endpoints respond."
+        files={[
+          "project/Project.java",
+          "project/ProjectRepository.java",
+          "project/ProjectService.java",
+          "project/ProjectController.java",
+          "common/ApiExceptionHandler.java",
+        ]}
+      />
+
+      <WhyPhase
+        goal="Model your data once and expose it through a small, predictable REST contract the UI can rely on."
+        reasons={[
+          {
+            icon: "layers",
+            title: "Why Controller → Service → Repository?",
+            text: "Each layer has one job. The controller speaks HTTP, the service holds business rules (like setting createdAt), and the repository talks to MongoDB. You can change one without breaking the others, and test each in isolation.",
+          },
+          {
+            icon: "database",
+            title: "Why Spring Data repositories?",
+            text: "You declare an interface and a method name like findAllByOrderByCreatedAtDesc; Spring writes the query at startup. Less code means fewer bugs during a 24-hour hackathon.",
+          },
+          {
+            icon: "shield",
+            title: "Why a request DTO with @Valid?",
+            text: "The DTO is the BFF's front door: it lists exactly which fields a client may send (no sneaking in an id or createdAt), and Bean Validation rejects bad input with 400 before it ever reaches the database. Browser validation is only UX, never security.",
+          },
+          {
+            icon: "hash",
+            title: "Why consistent shapes and status codes?",
+            text: "{ projects }, { project } and { error } plus 201/400/404 mean the UI can handle every case without guessing. Wrapping lists in an object also lets you add pagination later without breaking clients.",
+          },
+        ]}
+        analogy="The DTO is the form at a government counter. If a required box is blank, the clerk hands it straight back. It never reaches the filing cabinet (MongoDB)."
+        pitfalls={[
+          "Forgetting @Valid: validation annotations are silently ignored",
+          "Returning entities with internal fields instead of shaping the response",
+          "Returning 200 for a create instead of 201",
+          "No @RestControllerAdvice: errors come back as Spring's default HTML or JSON instead of { error }",
+        ]}
       />
 
       <div className="grid grid-2 crud-grid">
@@ -364,13 +425,13 @@ export default function CrudTab() {
 
       <div className="grid grid-main">
         <div className="stack">
-          <Card title="Project schema" subtitle="models/Project.js" icon="database">
+          <Card title="Project document + request DTO" subtitle="Project.java · CreateProjectRequest" icon="database">
             <table className="table">
               <thead>
                 <tr>
                   <th>Field</th>
-                  <th>Type</th>
-                  <th>Rules</th>
+                  <th>Java type</th>
+                  <th>Validation / source</th>
                 </tr>
               </thead>
               <tbody>
@@ -392,10 +453,11 @@ export default function CrudTab() {
           <Card title="API contract" subtitle="Routes this tab calls" icon="file">
             <EndpointRow method="GET" path="/api/projects" desc="List newest first" status="200" />
             <EndpointRow method="POST" path="/api/projects" desc="Create from JSON body" status="201 / 400" />
-            <EndpointRow method="DELETE" path="/api/projects/[id]" desc="Built in Phase 3" auth status="200 / 401" />
+            <EndpointRow method="DELETE" path="/api/projects/{id}" desc="Guarded in Phase 3" auth status="200 / 401" />
             <div className="contract-note">
-              <span>Response shapes:</span> <code>{"{ projects: [...] }"}</code> and <code>{"{ project: {...} }"}</code>.
-              A bare array works too.
+              <span>Response shapes:</span> <code>{"{ projects: [...] }"}</code>, <code>{"{ project: {...} }"}</code>,{" "}
+              <code>{"{ error: \"...\" }"}</code>. Spring Data maps <code>@Id String id</code> to Mongo&apos;s <code>_id</code>; the
+              JSON field is <code>id</code>.
             </div>
           </Card>
 
@@ -406,7 +468,7 @@ export default function CrudTab() {
               <div><Badge tone="warning">400</Badge> Bad request: validation failed</div>
               <div><Badge tone="warning">401</Badge> Unauthorized: missing or invalid JWT</div>
               <div><Badge tone="danger">404</Badge> Not found: wrong id</div>
-              <div><Badge tone="danger">500</Badge> Server error: check your terminal</div>
+              <div><Badge tone="danger">500</Badge> Server error: check the Spring Boot console</div>
             </div>
           </Card>
         </div>
@@ -415,20 +477,46 @@ export default function CrudTab() {
           <LiveCodeSteps
             id="phase2"
             steps={[
-              { title: "Define ProjectSchema in models/Project.js", detail: "title, description, category (enum), timestamps." },
-              { title: "Export with mongoose.models.Project || mongoose.model(…)", detail: "Avoids OverwriteModelError on hot reload." },
-              { title: "GET handler: connectDB() → Project.find().sort()", detail: "Return { projects }." },
-              { title: "POST handler: request.json() → Project.create()", detail: "Return 201, or 400 on ValidationError." },
-              { title: "Submit a project — it appears in the feed", done: hasProjects },
+              {
+                title: "Project @Document with an @Id String id",
+                detail: "title, description, category, teamName, repoUrl, createdAt.",
+                why: "@Document maps the class to the projects collection. A String @Id lets MongoDB generate the ObjectId, which Spring converts for you.",
+              },
+              {
+                title: "ProjectRepository extends MongoRepository<Project, String>",
+                detail: "Add findAllByOrderByCreatedAtDesc().",
+                why: "You get save, findById, deleteById and more for free. The derived query means zero query code for \"newest first\".",
+              },
+              {
+                title: "ProjectService: create() sets createdAt, delete() checks existence",
+                why: "Business rules live in one place. The server, not the client, decides timestamps and ids, so nobody can backdate a submission.",
+              },
+              {
+                title: "ProjectController: GET → { projects }, POST @Valid DTO → 201",
+                detail: "CreateProjectRequest is a record with @NotBlank / @Size / @Pattern.",
+                why: "The record DTO is the public contract. @Valid makes Spring reject bad input with 400 before your method runs.",
+              },
+              {
+                title: "ApiExceptionHandler (@RestControllerAdvice) → { error }",
+                why: "One place turns exceptions into the JSON shape the UI shows to users, instead of try/catch in every controller. Test it with \"Skip browser validation\".",
+              },
+              {
+                title: "Restart, submit a project: it appears in the feed",
+                done: hasProjects,
+                why: "You just did a full round trip: UI → proxy → controller → service → repository → Atlas → back.",
+              },
             ]}
           />
         </div>
       </div>
 
-      <Collapsible title="Presenter cheat sheet: File 2" subtitle="Schema + GET/POST handlers" icon="key">
+      <Collapsible title="Presenter cheat sheet: File 2" subtitle="Document, repository, service, controller, error handler" icon="key">
         <div className="stack">
-          <CodeBlock filename="models/Project.js" code={PROJECT_MODEL} />
-          <CodeBlock filename="app/api/projects/route.js" code={PROJECTS_ROUTE} />
+          <CodeBlock filename="project/Project.java" code={PROJECT_ENTITY} />
+          <CodeBlock filename="project/ProjectRepository.java" code={PROJECT_REPOSITORY} />
+          <CodeBlock filename="project/ProjectService.java" code={PROJECT_SERVICE} />
+          <CodeBlock filename="project/ProjectController.java" code={PROJECT_CONTROLLER} />
+          <CodeBlock filename="common/ApiExceptionHandler.java" code={EXCEPTION_HANDLER} />
         </div>
       </Collapsible>
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Icon from "./Icon";
 import { useCopy, useLocalStorage } from "@/lib/hooks";
 import { STORAGE_KEYS } from "@/lib/constants";
@@ -147,12 +148,78 @@ export function PhaseHeader({ phase, title, lead, files }) {
   );
 }
 
+export function WhyText({ children }) {
+  return (
+    <p className="why-text">
+      <span className="why-label">
+        <Icon name="lightbulb" size={12} /> Why
+      </span>
+      {children}
+    </p>
+  );
+}
+
+/** "Why are we doing this?" panel shown at the top of each phase. */
+export function WhyPhase({ goal, reasons, analogy, pitfalls }) {
+  return (
+    <section className="why-phase">
+      <div className="why-goal">
+        <span className="why-goal-icon">
+          <Icon name="target" size={18} />
+        </span>
+        <div>
+          <span className="why-goal-label">Goal of this phase</span>
+          <strong>{goal}</strong>
+        </div>
+      </div>
+
+      <div className="why-reasons">
+        {reasons.map((r) => (
+          <div key={r.title} className="why-reason">
+            <Icon name={r.icon || "lightbulb"} size={16} />
+            <div>
+              <strong>{r.title}</strong>
+              <p>{r.text}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {(analogy || pitfalls?.length > 0) && (
+        <div className="why-extra">
+          {analogy && (
+            <div className="why-analogy">
+              <span className="why-extra-label">
+                <Icon name="coffee" size={13} /> Think of it like…
+              </span>
+              <p>{analogy}</p>
+            </div>
+          )}
+          {pitfalls?.length > 0 && (
+            <div className="why-pitfalls">
+              <span className="why-extra-label">
+                <Icon name="alert" size={13} /> Common pitfalls
+              </span>
+              <ul>
+                {pitfalls.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /**
  * Presenter-facing checklist of live-coding steps for a phase.
  * `done` on a step marks it complete automatically (e.g. once the endpoint responds).
  */
 export function LiveCodeSteps({ id, steps }) {
   const [state, setState] = useLocalStorage(STORAGE_KEYS.steps, {});
+  const [showWhy, setShowWhy] = useState(true);
   const isDone = (step, i) => step.done || Boolean(state[`${id}:${i}`]);
   const completed = steps.filter(isDone).length;
 
@@ -162,9 +229,15 @@ export function LiveCodeSteps({ id, steps }) {
       subtitle={`${completed} of ${steps.length} done`}
       icon="terminal"
       actions={
-        <div className="mini-progress" aria-hidden="true">
-          <span style={{ width: `${(completed / steps.length) * 100}%` }} />
-        </div>
+        <>
+          <label className="toggle toggle-inline">
+            <input type="checkbox" checked={showWhy} onChange={(e) => setShowWhy(e.target.checked)} />
+            <span>Show why</span>
+          </label>
+          <div className="mini-progress" aria-hidden="true">
+            <span style={{ width: `${(completed / steps.length) * 100}%` }} />
+          </div>
+        </>
       }
     >
       <ol className="steps">
@@ -188,6 +261,7 @@ export function LiveCodeSteps({ id, steps }) {
                   {step.done && <Badge tone="success">auto-detected</Badge>}
                 </div>
                 {step.detail && <p className="step-detail">{step.detail}</p>}
+                {showWhy && step.why && <WhyText>{step.why}</WhyText>}
               </div>
             </li>
           );

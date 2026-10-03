@@ -2,58 +2,60 @@
 
 import { useState } from "react";
 import Icon from "../Icon";
-import { Badge, Callout, Card, CodeBlock, CopyButton, PhaseHeader } from "../ui";
+import { Badge, Callout, Card, CodeBlock, CopyButton, PhaseHeader, WhyPhase, WhyText } from "../ui";
 import { PHASES, STORAGE_KEYS } from "@/lib/constants";
 import { CHECKLIST, CHECKLIST_TOTAL } from "@/lib/checklist";
 import { useLocalStorage } from "@/lib/hooks";
 
 const PHASE = PHASES[3];
-
 const REPO_URL = "https://github.com/divyansh9876/utp-codefest-bff-workshop";
 
-const PLATFORMS = {
-  render: {
-    label: "Render",
-    url: `https://render.com/deploy?repo=${REPO_URL}`,
-    hint: "One-click Blueprint from render.yaml, long-running Node server, free tier",
+const SERVICES = [
+  {
+    name: "Spring Boot BFF",
+    icon: "server",
+    how: "Web Service · Docker",
+    url: "https://dashboard.render.com/web/new",
+    cta: "New Web Service",
   },
-  vercel: { label: "Vercel", url: "https://vercel.com/new", hint: "Zero-config for Next.js, serverless functions" },
-  railway: { label: "Railway", url: "https://railway.com/new", hint: "Long-running Node server, simple variables UI" },
-};
+  {
+    name: "Next.js frontend",
+    icon: "monitor",
+    how: "Blueprint · render.yaml",
+    url: `https://render.com/deploy?repo=${REPO_URL}`,
+    cta: "Deploy Blueprint",
+  },
+];
 
 const ENV_VARS = [
-  { name: "MONGODB_URI", example: "mongodb+srv://user:pass@cluster…/codefest", used: "lib/mongodb.js", secret: true },
-  { name: "JWT_SECRET", example: "64+ random characters", used: "lib/auth.js", secret: true },
-  { name: "JWT_EXPIRES_IN", example: "1h", used: "lib/auth.js", secret: false },
+  { name: "MONGODB_URI", service: "BFF", example: "mongodb+srv://user:pass@cluster…/codefest", used: "application.yml", secret: true },
+  { name: "JWT_SECRET", service: "BFF", example: "32+ random bytes", used: "JwtService", secret: true },
+  { name: "JWT_EXPIRATION_MINUTES", service: "BFF", example: "60", used: "JwtService" },
+  { name: "GOOGLE_CLIENT_ID", service: "BFF", example: "…apps.googleusercontent.com", used: "AuthController (aud check)" },
+  { name: "BFF_URL", service: "UI", example: "https://utp-codefest-bff.onrender.com", used: "next.config.mjs proxy", buildTime: true },
   {
     name: "NEXT_PUBLIC_GOOGLE_CLIENT_ID",
+    service: "UI",
     example: "…apps.googleusercontent.com",
-    used: "GoogleSignIn + /api/auth/google",
-    secret: false,
+    used: "GoogleSignIn button",
     buildTime: true,
   },
 ];
 
 const GITIGNORE_RULES = [
-  { label: "Ignores .env files", test: (t) => /^\s*\.env(\*|\.local|\*\.local)?\s*$/m.test(t) || /^\s*\.env\*/m.test(t), critical: true },
-  { label: "Ignores node_modules", test: (t) => /node_modules/.test(t), critical: true },
-  { label: "Ignores .next build output", test: (t) => /\.next/.test(t), critical: false },
-  { label: "Ignores .vercel", test: (t) => /\.vercel/.test(t), critical: false },
+  { label: "Ignores .env files", test: (t) => /^\s*\/?\.env(\*|\.local)?\s*$/m.test(t), critical: true },
+  { label: "Ignores target/ (Maven build output)", test: (t) => /^\s*\/?target\/?\s*$/m.test(t), critical: false },
+  { label: "Ignores node_modules (frontend)", test: (t) => /node_modules/.test(t), critical: false },
+  { label: "Ignores IDE files (.idea, *.iml)", test: (t) => /\.idea|\*\.iml/.test(t), critical: false },
 ];
 
 const LEAK_PATTERNS = [
-  { label: "MongoDB URI with credentials", re: /mongodb(\+srv)?:\/\/[^:\s/]+:[^@\s]+@/i },
+  { label: "MongoDB URI with credentials", re: /mongodb(\+srv)?:\/\/[^:\s/$]+:[^@\s]+@/i },
   { label: "Secret exposed via NEXT_PUBLIC_", re: /NEXT_PUBLIC_[A-Z_]*(SECRET|URI|PASSWORD|KEY|TOKEN)/ },
-  { label: "Hard-coded JWT secret", re: /(JWT_SECRET\s*[=:]\s*["']?[^"'\s<]{6,})|(jwt\.sign\([^)]*,\s*["'][^"']+["'])/ },
-  { label: "Plain-text password field stored", re: /password\s*:\s*\{\s*type\s*:\s*String/ },
+  { label: "Hard-coded JWT secret (not a ${PLACEHOLDER})", re: /(jwt[._-]?secret|JWT_SECRET)\s*[=:]\s*["']?(?!\$\{)[^"'\s<]{6,}/i },
+  { label: "Secret string passed to Keys.hmacShaKeyFor", re: /hmacShaKeyFor\(\s*"[^"]+"/ },
+  { label: "Plain-text password stored on an entity", re: /private\s+String\s+password\s*;[\s\S]*@Document|@Document[\s\S]*private\s+String\s+password\s*;/ },
 ];
-
-const pick = (value, platform) => (value && typeof value === "object" ? value[platform] : value);
-
-function InlineCode({ text }) {
-  if (!text) return null;
-  return text.split("`").map((part, i) => (i % 2 ? <code key={i}>{part}</code> : part));
-}
 
 function randomSecret(bytes = 48) {
   const buf = new Uint8Array(bytes);
@@ -61,6 +63,11 @@ function randomSecret(bytes = 48) {
   let binary = "";
   buf.forEach((b) => (binary += String.fromCharCode(b)));
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function InlineCode({ text }) {
+  if (!text) return null;
+  return text.split("`").map((part, i) => (i % 2 ? <code key={i}>{part}</code> : part));
 }
 
 function Progress({ done, total }) {
@@ -92,10 +99,11 @@ function SecretGenerator() {
         <button type="button" className="btn btn-primary btn-sm" onClick={() => setSecret(randomSecret())}>
           <Icon name="refresh" size={14} /> Generate
         </button>
-        {secret && <CopyButton text={`JWT_SECRET="${secret}"`} label="Copy line" />}
+        {secret && <CopyButton text={`JWT_SECRET=${secret}`} label="Copy line" />}
       </div>
+      <WhyText>48 random bytes become 64 characters, well above jjwt&apos;s 32-byte minimum. With a 64-byte key, jjwt signs tokens with HS512.</WhyText>
       <p className="tiny muted">
-        Or in a terminal: <code>node -e &quot;console.log(require(&apos;crypto&apos;).randomBytes(48).toString(&apos;base64url&apos;))&quot;</code>
+        Or in a terminal: <code>openssl rand -base64 48</code>
       </p>
     </Card>
   );
@@ -129,7 +137,11 @@ function PrePushScanner() {
         rows={6}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder={mode === "gitignore" ? "Paste your .gitignore here…" : "Paste any source file, e.g. a route handler or next.config.mjs…"}
+        placeholder={
+          mode === "gitignore"
+            ? "Paste your .gitignore here…"
+            : "Paste application.yml, a Java class, or next.config.mjs…"
+        }
       />
       {text && mode === "gitignore" && (
         <ul className="scan">
@@ -172,7 +184,7 @@ function SmokeTest() {
     { path: "/", label: "Workshop UI", expect: "This app, live" },
   ];
   return (
-    <Card title="Production smoke test" subtitle="Paste your deployed URL" icon="rocket">
+    <Card title="Production smoke test" subtitle="Paste your deployed FRONTEND URL" icon="rocket">
       <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://utp-codefest-bff-workshop.onrender.com" />
       <div className="smoke">
         {links.map((l) => (
@@ -193,18 +205,16 @@ function SmokeTest() {
           </a>
         ))}
       </div>
-      <p className="tiny muted">
-        Got a 500 on <code>/api/health</code> in production? Nine times out of ten it&apos;s a missing env var or Atlas Network Access.
-        On Render&apos;s free tier, the first request after idling takes ~30–60s while the service wakes up.
-      </p>
+      <WhyText>
+        Testing through the frontend URL exercises every hop: browser → Next.js proxy → Spring Boot → Atlas. A 500 usually means a
+        wrong <code>BFF_URL</code>, a missing env var, or Atlas Network Access.
+      </WhyText>
     </Card>
   );
 }
 
 export default function DeployTab() {
   const [checked, setChecked] = useLocalStorage(STORAGE_KEYS.checklist, {});
-  const [storedPlatform, setPlatform] = useLocalStorage(STORAGE_KEYS.platform, "render");
-  const platform = PLATFORMS[storedPlatform] ? storedPlatform : "render";
   const [openCode, setOpenCode] = useState(null);
   const done = CHECKLIST.reduce((sum, s) => sum + s.items.filter((i) => checked[i.id]).length, 0);
   const complete = done >= CHECKLIST_TOTAL;
@@ -216,8 +226,41 @@ export default function DeployTab() {
       <PhaseHeader
         phase={PHASE}
         title="Deploy & Security Checklist"
-        lead="Your BFF works locally, now ship it without leaking a single secret. Tick each item as you walk through it live: push the repo, set environment variables in the cloud dashboard, and smoke-test production."
-        files={[".gitignore", ".env.example", "render.yaml", "Render dashboard"]}
+        lead="Your BFF works locally, so now ship both services without leaking a single secret: the Spring Boot BFF as a Docker web service, and the Next.js UI whose /api proxy points at it. Tick each item as you walk through it live."
+        files={["bff/Dockerfile", ".gitignore", ".env.example", "render.yaml", "Render dashboard"]}
+      />
+
+      <WhyPhase
+        goal="Get both services live on Render with every secret in environment variables, none in git."
+        reasons={[
+          {
+            icon: "key",
+            title: "Why environment variables?",
+            text: "The same build runs locally and in production; only the env changes. Secrets never touch the codebase, so the repo can be public for judges and teammates.",
+          },
+          {
+            icon: "git",
+            title: "Why obsess over .gitignore?",
+            text: "Bots scan GitHub for leaked MongoDB URIs within minutes of a push. Git history is permanent, so prevention is the only cheap fix.",
+          },
+          {
+            icon: "server",
+            title: "Why Docker for Spring Boot?",
+            text: "Render has no built-in Java runtime. A multi-stage Dockerfile builds the jar with Maven, then ships it on a slim JRE image, giving reproducible builds.",
+          },
+          {
+            icon: "layers",
+            title: "Why two services?",
+            text: "The UI and the BFF scale, deploy and fail independently. The Next.js proxy (BFF_URL) keeps them on one origin from the browser's point of view.",
+          },
+        ]}
+        analogy="Env vars are a hotel-room safe. Every room (deployment) has the same safe (code), but each guest sets their own combination, and the combination is never printed on the door."
+        pitfalls={[
+          "Missing server.port=${PORT}: Render can't reach Spring Boot",
+          "Changing BFF_URL without rebuilding the frontend",
+          "Spring Boot exceeding 512 MB on the free tier (use MaxRAMPercentage)",
+          "Google origins listing the BFF URL instead of the frontend URL",
+        ]}
       />
 
       {complete && (
@@ -225,7 +268,7 @@ export default function DeployTab() {
           <Icon name="rocket" size={28} />
           <div>
             <strong>Shipped!</strong>
-            <p>Your Backend-for-Frontend is live with secrets locked down. Go build something for CodeFest.</p>
+            <p>Your Spring Boot BFF and Next.js UI are live with secrets locked down. Go build something for CodeFest.</p>
           </div>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setChecked({})}>
             <Icon name="reset" size={14} /> Reset
@@ -235,33 +278,22 @@ export default function DeployTab() {
 
       <div className="grid grid-main">
         <div className="stack">
-          <Card
-            title="Ship-it checklist"
-            subtitle="Progress is saved in this browser"
-            icon="shieldCheck"
-            actions={
-              <div className="segmented segmented-sm">
-                {Object.entries(PLATFORMS).map(([key, p]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`segment${platform === key ? " segment-active" : ""}`}
-                    onClick={() => setPlatform(key)}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            }
-          >
+          <Card title="Ship-it checklist" subtitle="Progress is saved in this browser" icon="shieldCheck">
             <div className="checklist-head">
               <Progress done={done} total={CHECKLIST_TOTAL} />
-              <div>
-                <strong>Deploying to {PLATFORMS[platform].label}</strong>
-                <p className="muted">{PLATFORMS[platform].hint}</p>
-                <a className="btn btn-secondary btn-sm" href={PLATFORMS[platform].url} target="_blank" rel="noreferrer">
-                  Open {PLATFORMS[platform].label} <Icon name="external" size={13} />
-                </a>
+              <div className="services">
+                {SERVICES.map((s) => (
+                  <div key={s.name} className="service">
+                    <Icon name={s.icon} size={16} />
+                    <span>
+                      <strong>{s.name}</strong>
+                      <small>{s.how}</small>
+                    </span>
+                    <a className="btn btn-secondary btn-xs" href={s.url} target="_blank" rel="noreferrer">
+                      {s.cta} <Icon name="external" size={12} />
+                    </a>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -279,7 +311,6 @@ export default function DeployTab() {
                   </div>
                   <ul className="checklist">
                     {section.items.map((item) => {
-                      const code = pick(item.code, platform);
                       const isOpen = openCode === item.id;
                       return (
                         <li key={item.id} className={`check-item${checked[item.id] ? " check-item-done" : ""}`}>
@@ -291,24 +322,29 @@ export default function DeployTab() {
                             <span className="check-text">
                               <span className="check-title">
                                 <span>
-                                  <InlineCode text={pick(item.title, platform)} />
+                                  <InlineCode text={item.title} />
                                 </span>
                                 {item.warn && <Badge tone="danger">common mistake</Badge>}
                               </span>
                               {item.detail && (
                                 <span className="check-detail">
-                                  <InlineCode text={pick(item.detail, platform)} />
+                                  <InlineCode text={item.detail} />
                                 </span>
+                              )}
+                              {item.why && (
+                                <WhyText>
+                                  <InlineCode text={item.why} />
+                                </WhyText>
                               )}
                             </span>
                           </label>
-                          {code && (
+                          {item.code && (
                             <>
                               <button type="button" className="btn btn-ghost btn-xs check-code-toggle" onClick={() => setOpenCode(isOpen ? null : item.id)}>
                                 <Icon name={item.filename ? "file" : "terminal"} size={12} />
                                 {isOpen ? "Hide" : "Show"} {item.filename || "commands"}
                               </button>
-                              {isOpen && <CodeBlock code={code} filename={item.filename} compact />}
+                              {isOpen && <CodeBlock code={item.code} filename={item.filename} compact />}
                             </>
                           )}
                         </li>
@@ -322,12 +358,12 @@ export default function DeployTab() {
         </div>
 
         <div className="stack">
-          <Card title="Environment variables" subtitle={`Set these in ${PLATFORMS[platform].label}`} icon="server">
+          <Card title="Environment variables" subtitle="Where each one lives" icon="server">
             <table className="table">
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Example</th>
+                  <th>Service</th>
                   <th>Used in</th>
                 </tr>
               </thead>
@@ -341,9 +377,12 @@ export default function DeployTab() {
                           <Icon name="lock" size={11} /> secret
                         </span>
                       )}
-                      {v.buildTime && <span className="public-tag">public · build-time</span>}
+                      {v.buildTime && <span className="public-tag">build-time</span>}
+                      <div className="muted tiny">{v.example}</div>
                     </td>
-                    <td className="muted tiny">{v.example}</td>
+                    <td>
+                      <Badge tone={v.service === "BFF" ? "primary" : "info"}>{v.service}</Badge>
+                    </td>
                     <td>
                       <code className="tiny">{v.used}</code>
                     </td>
@@ -351,9 +390,9 @@ export default function DeployTab() {
                 ))}
               </tbody>
             </table>
-            <Callout tone="danger" title="Never NEXT_PUBLIC_MONGODB_URI">
-              The <code>NEXT_PUBLIC_</code> prefix copies a value into the JavaScript sent to every visitor. BFF secrets
-              are read only inside route handlers.
+            <Callout tone="success" title="The frontend has zero secrets">
+              Every secret lives in the Spring Boot service. The UI only knows where the BFF is (<code>BFF_URL</code>) and the public
+              Google client ID.
             </Callout>
           </Card>
 

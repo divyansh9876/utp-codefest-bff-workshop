@@ -6,7 +6,7 @@ import { JsonView, Method } from "./ui";
 import { requestLog } from "@/lib/api";
 
 function statusTone(entry) {
-  if (entry.status === 0) return "danger";
+  if (entry.status === 0 || entry.offline) return "danger";
   if (entry.notBuilt) return "warning";
   if (entry.ok) return "success";
   if (entry.status === 401 || entry.status === 403) return "warning";
@@ -50,7 +50,7 @@ export default function NetworkInspector() {
         <div className="inspector-body">
           <div className="inspector-toolbar">
             <span className="muted">
-              Browser → <code>/api/*</code> route handlers. Passwords are masked.
+              Browser → <code>/api/*</code> → Next.js proxy → Spring Boot BFF. Passwords are masked.
             </span>
             <button type="button" className="btn btn-ghost btn-xs" onClick={() => requestLog.clear()}>
               <Icon name="trash" size={13} /> Clear

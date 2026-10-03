@@ -17,16 +17,10 @@ import {
   LiveCodeSteps,
   Method,
   PhaseHeader,
+  WhyPhase,
 } from "../ui";
 import { PHASES } from "@/lib/constants";
-import {
-  AUTH_LIB,
-  GOOGLE_ROUTE,
-  LOGIN_ROUTE,
-  PROJECT_ID_ROUTE,
-  REGISTER_ROUTE,
-  USER_MODEL,
-} from "@/lib/snippets";
+import { AUTH_CONTROLLER, JWT_FILTER, JWT_SERVICE, USER_ENTITY, USER_REPOSITORY } from "@/lib/snippets";
 import { api, projectId } from "@/lib/api";
 import { decodeJwt, makeDemoToken } from "@/lib/jwt";
 import { formatDuration, goToTab, useNow } from "@/lib/hooks";
@@ -88,7 +82,7 @@ function AuthForms() {
     setResult({ ...r, mode });
 
     if (!r.ok) {
-      notify(r.notBuilt ? `POST /api/auth/${mode} isn't built yet` : r.error, r.notBuilt ? "warning" : "danger");
+      notify(r.notBuilt ? `POST /api/auth/${mode} isn't mapped yet` : r.error, r.notBuilt ? "warning" : "danger");
       return;
     }
 
@@ -120,7 +114,7 @@ function AuthForms() {
     setResult({ ...r, mode: "google" });
 
     if (!r.ok) {
-      notify(r.notBuilt ? "POST /api/auth/google isn't built yet" : r.error, r.notBuilt ? "warning" : "danger");
+      notify(r.notBuilt ? "POST /api/auth/google isn't mapped yet" : r.error, r.notBuilt ? "warning" : "danger");
       return;
     }
     const token = r.data?.token || r.data?.accessToken;
@@ -256,15 +250,17 @@ function AuthForms() {
 
       {result && !result.ok && (
         <Callout tone={result.notBuilt ? "warning" : "danger"} title={`${result.status || "Network"} · ${result.error}`}>
-          {result.notBuilt
-            ? `Create app/api/auth/${result.mode}/route.js and export POST.`
+          {result.offline
+            ? "Start the BFF: ./mvnw spring-boot:run in the bff folder."
+            : result.notBuilt
+            ? `Add @PostMapping("/${result.mode}") to AuthController (@RequestMapping("/api/auth")).`
             : result.mode === "google"
-              ? "The BFF rejected the Google ID token. Check that the client ID in .env.local matches the one in Google Cloud Console."
+              ? "The BFF rejected the Google ID token. Check that GOOGLE_CLIENT_ID in bff/.env matches NEXT_PUBLIC_GOOGLE_CLIENT_ID."
               : result.status === 401
               ? "Generic error on purpose: we never reveal whether the email exists."
               : result.status === 409
                 ? "That email is taken. Switch to Login."
-                : "Check the next dev terminal for details."}
+                : "Check the Spring Boot console for details."}
         </Callout>
       )}
       {result?.ok && result.mode === "register" && (
@@ -303,7 +299,7 @@ function BcryptPlayground() {
   };
 
   return (
-    <Card title="bcrypt playground" subtitle="What register stores instead of the password" icon="shield">
+    <Card title="BCrypt playground" subtitle="Same algorithm as Spring's BCryptPasswordEncoder" icon="shield">
       <div className="field-row field-row-tight">
         <label className="field">
           <span className="field-label">Plain password</span>
@@ -349,6 +345,10 @@ function BcryptPlayground() {
           {hashes.length > 1 && (
             <p className="tiny muted">Same password, different hash: the random salt defeats rainbow tables.</p>
           )}
+          <p className="tiny muted">
+            Spring writes <code>$2a$</code> instead of <code>$2b$</code>: same algorithm, and the hashes verify each other. The cost
+            you set here is <code>new BCryptPasswordEncoder(cost)</code>.
+          </p>
           <div className="input-group">
             <input value={verifyInput} onChange={(e) => setVerifyInput(e.target.value)} placeholder="Try a password against the latest hash" />
             <button type="button" className="btn btn-secondary" onClick={verify}>
@@ -435,7 +435,7 @@ function JwtInspector() {
           {decoded.header?.alg === "RS256" && (
             <Callout tone="info" title="This one is signed by Google, not by us">
               RS256 uses Google&apos;s <em>private</em> key; anyone can check it with Google&apos;s public keys. That&apos;s what{" "}
-              <code>verifyIdToken()</code> does in the BFF before issuing our own HS256 JWT.
+              <code>GoogleIdTokenVerifier.verify()</code> does in Spring Boot before issuing our own HMAC-signed JWT.
             </Callout>
           )}
           <div className="jwt-raw">
@@ -485,7 +485,7 @@ function JwtInspector() {
               ) : (
                 <p className="tiny">
                   The browser can&apos;t verify this; only the server knows the secret. Change one character of
-                  the payload and <code>jwt.verify()</code> fails.
+                  the payload and <code>jwtService.parse()</code> throws.
                 </p>
               )}
             </div>
@@ -620,7 +620,7 @@ function ProtectedActions() {
               <span>{t.withToken ? "With token" : "Without token"}</span>
               <span className="muted">expected {t.expected}</span>
               <strong>got {t.status || "ERR"}</strong>
-              {t.notBuilt && <span className="muted">· route not built</span>}
+              {t.notBuilt && <span className="muted">· endpoint not mapped</span>}
               {!t.notBuilt && !t.pass && !t.withToken && t.status >= 200 && t.status < 300 && (
                 <span className="test-alarm">Guard missing: anyone can delete!</span>
               )}
@@ -658,8 +658,8 @@ function AuthFlow() {
       label: "Register",
       steps: [
         { icon: "user", t: "{ name, email, password }", s: "Browser" },
-        { icon: "shield", t: "bcrypt.hash(pw, 10)", s: "BFF" },
-        { icon: "database", t: "User.create({ passwordHash })", s: "MongoDB" },
+        { icon: "shield", t: "encoder.encode(pw)", s: "AuthController" },
+        { icon: "database", t: "users.save(user)", s: "MongoDB" },
         { icon: "check", t: "201 { user } (no hash)", s: "Browser" },
       ],
     },
@@ -667,8 +667,8 @@ function AuthFlow() {
       label: "Login",
       steps: [
         { icon: "key", t: "{ email, password }", s: "Browser" },
-        { icon: "shield", t: "bcrypt.compare()", s: "BFF" },
-        { icon: "zap", t: "jwt.sign(payload, SECRET)", s: "BFF" },
+        { icon: "shield", t: "encoder.matches(pw, hash)", s: "AuthController" },
+        { icon: "zap", t: "jwtService.generate(user)", s: "JwtService" },
         { icon: "unlock", t: "200 { token }", s: "Browser" },
       ],
     },
@@ -676,8 +676,8 @@ function AuthFlow() {
       label: "Google",
       steps: [
         { icon: "user", t: "Google popup → credential", s: "Browser" },
-        { icon: "shieldCheck", t: "verifyIdToken({ aud })", s: "BFF" },
-        { icon: "database", t: "User.findOne / create", s: "MongoDB" },
+        { icon: "shieldCheck", t: "GoogleIdTokenVerifier.verify()", s: "AuthController" },
+        { icon: "database", t: "findByGoogleId / save", s: "MongoDB" },
         { icon: "unlock", t: "200 { token } (our JWT)", s: "Browser" },
       ],
     },
@@ -685,8 +685,8 @@ function AuthFlow() {
       label: "Protected",
       steps: [
         { icon: "key", t: "Authorization: Bearer …", s: "Browser" },
-        { icon: "shieldCheck", t: "jwt.verify(token, SECRET)", s: "Auth guard" },
-        { icon: "trash", t: "Project.findByIdAndDelete()", s: "MongoDB" },
+        { icon: "shieldCheck", t: "jwtService.parse(token)", s: "JwtAuthFilter" },
+        { icon: "trash", t: "repo.deleteById(id)", s: "MongoDB" },
         { icon: "check", t: "200 OK, or 401", s: "Browser" },
       ],
     },
@@ -724,14 +724,46 @@ export default function AuthTab() {
       <PhaseHeader
         phase={PHASE}
         title="Auth & JWT Vault"
-        lead="Two providers, one JWT. Local: hash with bcrypt on register, compare and sign on login. Google: verify Google's ID token in the BFF, then issue the same JWT. Every protected route only checks our Bearer token."
+        lead="Two providers, one JWT. Local: BCrypt-hash on register, match and sign on login. Google: verify Google's ID token in Spring Boot, then issue the same JWT. One servlet filter guards every protected endpoint."
         files={[
-          "models/User.js",
-          "lib/auth.js",
-          "app/api/auth/register/route.js",
-          "app/api/auth/login/route.js",
-          "app/api/auth/google/route.js",
-          "app/api/projects/[id]/route.js",
+          "user/User.java",
+          "user/UserRepository.java",
+          "auth/JwtService.java",
+          "auth/AuthController.java",
+          "auth/JwtAuthFilter.java",
+        ]}
+      />
+
+      <WhyPhase
+        goal="Know who is calling, and only let signed-in users change data."
+        reasons={[
+          {
+            icon: "shield",
+            title: "Why hash with BCrypt?",
+            text: "Never store passwords, only hashes. BCrypt is deliberately slow and adds a random salt to every hash, so a leaked database can't be reversed with lookup tables, and cracking each password takes real time.",
+          },
+          {
+            icon: "key",
+            title: "Why a JWT?",
+            text: "A JWT is a signed, self-contained pass. The BFF can verify it on every request with just the secret, with no session table and no database lookup. That keeps the BFF stateless, so it restarts and scales freely.",
+          },
+          {
+            icon: "user",
+            title: "Why two providers but one token?",
+            text: "Google proves who the user is; then the BFF issues its own JWT. Protected endpoints only ever verify one kind of token, so adding GitHub or Microsoft later never touches them.",
+          },
+          {
+            icon: "shieldCheck",
+            title: "Why a filter instead of checks in each controller?",
+            text: "JwtAuthFilter runs before any controller. Protection lives in one place, so you can't forget it on a new endpoint, and controllers stay focused on business logic.",
+          },
+        ]}
+        analogy="A JWT is a festival wristband. Security checks your ID once at the gate (login) and gives you a tamper-proof band. After that, staff at each stage just glance at the band (verify the signature) instead of checking your ID again."
+        pitfalls={[
+          "Putting secrets in the JWT payload: it's only base64, anyone can read it",
+          "Different errors for \"no such user\" and \"wrong password\" (leaks which emails exist)",
+          "JWT_SECRET shorter than 32 bytes: jjwt throws WeakKeyException at startup",
+          "Skipping Google's audience check: tokens issued to other apps would log in",
         ]}
       />
 
@@ -753,33 +785,62 @@ export default function AuthTab() {
           <EndpointRow method="POST" path="/api/auth/register" desc="{ name, email, password } → { user }" status="201 / 400 / 409" />
           <EndpointRow method="POST" path="/api/auth/login" desc="{ email, password } → { token, user }" status="200 / 401" />
           <EndpointRow method="POST" path="/api/auth/google" desc="{ credential } → { token, user }" status="200 / 401" />
-          <EndpointRow method="DELETE" path="/api/projects/[id]" desc="Requires a valid JWT" auth status="200 / 401 / 404" />
+          <EndpointRow method="DELETE" path="/api/projects/{id}" desc="Requires a valid JWT" auth status="200 / 401 / 404" />
           <div className="contract-note">
-            <span>Env vars:</span> <code>JWT_SECRET</code> (required), <code>JWT_EXPIRES_IN</code> (e.g. <code>1h</code>),{" "}
-            <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> (public: used by the button and by <code>verifyIdToken</code>).
+            <span>BFF env vars:</span> <code>JWT_SECRET</code> (32+ bytes), <code>JWT_EXPIRATION_MINUTES</code>,{" "}
+            <code>GOOGLE_CLIENT_ID</code> (audience check). <span>Frontend:</span> <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code>{" "}
+            (same value, renders the button).
           </div>
         </Card>
         <LiveCodeSteps
           id="phase3"
           steps={[
-            { title: "User model: passwordHash (local) + googleId (Google)", detail: "Both optional, provider field says which." },
-            { title: "Register: validate → bcrypt.hash → User.create", detail: "Return 201 without the hash." },
-            { title: "Login: findOne → bcrypt.compare → jwt.sign", detail: "Generic 401 on failure." },
-            { title: "Google: verifyIdToken → find or create user → jwt.sign", detail: "Same signToken() as local login." },
-            { title: "lib/auth.js requireAuth(): read Bearer header → jwt.verify" },
-            { title: "Guard DELETE /api/projects/[id] — log in to unlock", done: isAuthed },
+            {
+              title: "Add spring-security-crypto, jjwt and google-api-client to pom.xml",
+              why: "spring-security-crypto gives BCrypt without switching on the whole Spring Security filter chain, which keeps the workshop focused on the concepts.",
+            },
+            {
+              title: "User @Document: @JsonIgnore passwordHash, sparse unique googleId",
+              detail: "UserRepository with findByEmail / findByGoogleId / existsByEmail.",
+              why: "One users collection serves both providers. @JsonIgnore guarantees the hash can never be serialised into a response, even by accident.",
+            },
+            {
+              title: "JwtService: generate(user, provider) and parse(token)",
+              why: "Only one class knows the secret. Everything else asks it to sign or verify, so rotating the secret or changing the algorithm happens in one file.",
+            },
+            {
+              title: "AuthController /register and /login",
+              detail: "encoder.encode() on register (201, no hash); encoder.matches() on login → generic 401.",
+              why: "BCrypt's matches() re-hashes with the stored salt, so you never decrypt anything. The identical error message stops attackers from discovering registered emails.",
+            },
+            {
+              title: "AuthController /google: GoogleIdTokenVerifier → find or create → generate",
+              why: "verify() checks Google's signature, expiry and audience (your client ID). Only then do we trust the email and mint our own JWT.",
+            },
+            {
+              title: "JwtAuthFilter guards DELETE /api/projects/**",
+              why: "The filter rejects requests with a missing or invalid token with 401 before the controller runs. Use \"DELETE no token\" above to prove it.",
+            },
+            {
+              title: "Log in: the token decodes and delete unlocks",
+              done: isAuthed,
+              why: "The UI now attaches Authorization: Bearer <token>, and the filter lets it through.",
+            },
           ]}
         />
       </div>
 
-      <Collapsible title="Presenter cheat sheet: File 3" subtitle="User model, JWT helpers, register, login, Google, protected delete" icon="key">
+      <Collapsible title="Presenter cheat sheet: File 3" subtitle="User, JwtService, AuthController (local + Google), JwtAuthFilter" icon="key">
         <div className="stack">
-          <CodeBlock filename="models/User.js" code={USER_MODEL} />
-          <CodeBlock filename="lib/auth.js" code={AUTH_LIB} />
-          <CodeBlock filename="app/api/auth/register/route.js" code={REGISTER_ROUTE} />
-          <CodeBlock filename="app/api/auth/login/route.js" code={LOGIN_ROUTE} />
-          <CodeBlock filename="app/api/auth/google/route.js" code={GOOGLE_ROUTE} />
-          <CodeBlock filename="app/api/projects/[id]/route.js" code={PROJECT_ID_ROUTE} />
+          <CodeBlock filename="user/User.java" code={USER_ENTITY} />
+          <CodeBlock filename="user/UserRepository.java" code={USER_REPOSITORY} />
+          <CodeBlock filename="auth/JwtService.java" code={JWT_SERVICE} />
+          <CodeBlock filename="auth/AuthController.java" code={AUTH_CONTROLLER} />
+          <CodeBlock filename="auth/JwtAuthFilter.java" code={JWT_FILTER} />
+          <Callout tone="info" title="DELETE endpoint">
+            <code>@DeleteMapping(&quot;/{"{id}"}&quot;)</code> is already in the Phase 2 <code>ProjectController</code>; the filter is what
+            protects it.
+          </Callout>
         </div>
       </Collapsible>
     </div>
