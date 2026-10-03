@@ -15,7 +15,8 @@ const geistMono = Geist_Mono({
 
 const TITLE = `${HOST.name} · Backend Engineer (Java & Spring Boot)`;
 const DESCRIPTION = `${HOST.name} is a backend engineer building secure, production-ready APIs with Java, Spring Boot and MongoDB. Projects, the UTP CodeFest BFF workshop, and how to get in touch.`;
-const GOOGLE_VERIFICATION = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
+const GOOGLE_VERIFICATION =
+  process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "O00v_7TVGbP1b25119DtcR7bWROYuDMlyvwpSpzq3lc";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),

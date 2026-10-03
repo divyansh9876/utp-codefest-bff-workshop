@@ -21,7 +21,7 @@ services:
       - key: NEXT_PUBLIC_GA_ID
         sync: false
       - key: NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
-        sync: false
+        value: O00v_7TVGbP1b25119DtcR7bWROYuDMlyvwpSpzq3lc
 
   # Spring Boot BFF: uncomment once its repo exists (deployed from its Dockerfile).
   # - type: web
