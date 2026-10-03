@@ -62,7 +62,7 @@ const STRENGTH = ["Too weak", "Weak", "Okay", "Good", "Strong"];
 function AuthForms() {
   const { signIn, signOut, isAuthed, user, decoded, notify, setGoogleCredential } = useWorkshop();
   const [mode, setMode] = useState("register");
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState({ name: "", username: "", email: "", login: "", password: "" });
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
@@ -70,13 +70,30 @@ function AuthForms() {
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
-  const fillDemo = () =>
-    setForm({ name: "Ali Hacker", email: `ali.${Math.floor(Math.random() * 9000 + 1000)}@utp.edu.my`, password: "CodeFest2026!" });
+  const fillDemo = () => {
+    const n = Math.floor(Math.random() * 9000 + 1000);
+    setForm({
+      name: "Ali Hacker",
+      username: `ali_${n}`,
+      email: `ali.${n}@utp.edu.my`,
+      login: `ali_${n}`,
+      password: "CodeFest2026!",
+    });
+  };
+
+  // One login field: anything with "@" is sent as an email, otherwise as a username.
+  const loginBody = () => {
+    const id = form.login.trim();
+    return id.includes("@") ? { email: id, password: form.password } : { username: id, password: form.password };
+  };
 
   const onSubmit = async (e) => {
     e.preventDefault();
     setBusy(true);
-    const body = mode === "register" ? form : { email: form.email, password: form.password };
+    const body =
+      mode === "register"
+        ? { name: form.name, username: form.username, email: form.email, password: form.password }
+        : loginBody();
     const r = await api(`/api/auth/${mode}`, { method: "POST", body });
     setBusy(false);
     setResult({ ...r, mode });
@@ -92,7 +109,8 @@ function AuthForms() {
         signIn(token, r.data?.user);
         notify("Registered and signed in", "success");
       } else {
-        notify("Account created. Now log in.", "success");
+        notify("Account created. Now log in with your email or username.", "success");
+        setForm((f) => ({ ...f, login: f.username || f.email }));
         setMode("login");
       }
       return;
@@ -144,7 +162,10 @@ function AuthForms() {
           )}
           <div>
             <strong>{who.name || "Authenticated user"}</strong>
-            <span className="muted">{who.email}</span>
+            <span className="muted">
+              {who.username ? `@${who.username} · ` : ""}
+              {who.email}
+            </span>
           </div>
           <span className={`provider-badge provider-${provider}`}>
             {provider === "google" ? "via Google" : "via email"}
@@ -205,16 +226,35 @@ function AuthForms() {
       </div>
 
       <form className="form" onSubmit={onSubmit}>
-        {mode === "register" && (
+        {mode === "register" ? (
+          <>
+            <label className="field">
+              <span className="field-label">Name</span>
+              <input value={form.name} onChange={set("name")} placeholder="Ali Hacker" autoComplete="name" />
+            </label>
+            <label className="field">
+              <span className="field-label">Username</span>
+              <input
+                value={form.username}
+                onChange={set("username")}
+                placeholder="ali_hacker"
+                required
+                pattern="[A-Za-z0-9._]{3,30}"
+                title="3-30 letters, digits, dots or underscores"
+                autoComplete="username"
+              />
+            </label>
+            <label className="field">
+              <span className="field-label">Email</span>
+              <input type="email" value={form.email} onChange={set("email")} placeholder="you@utp.edu.my" required autoComplete="email" />
+            </label>
+          </>
+        ) : (
           <label className="field">
-            <span className="field-label">Name</span>
-            <input value={form.name} onChange={set("name")} placeholder="Ali Hacker" required autoComplete="name" />
+            <span className="field-label">Email or username</span>
+            <input value={form.login} onChange={set("login")} placeholder="you@utp.edu.my or ali_hacker" required autoComplete="username" />
           </label>
         )}
-        <label className="field">
-          <span className="field-label">Email</span>
-          <input type="email" value={form.email} onChange={set("email")} placeholder="you@utp.edu.my" required autoComplete="email" />
-        </label>
         <label className="field">
           <span className="field-label">
             Password
@@ -257,9 +297,9 @@ function AuthForms() {
             : result.mode === "google"
               ? "The BFF rejected the Google ID token. Check that GOOGLE_CLIENT_ID in bff/.env matches NEXT_PUBLIC_GOOGLE_CLIENT_ID."
               : result.status === 401
-              ? "Generic error on purpose: we never reveal whether the email exists."
+              ? "Generic error on purpose: we never reveal whether the account exists."
               : result.status === 409
-                ? "That email is taken. Switch to Login."
+                ? "That username or email is taken. Pick another, or switch to Login."
                 : "Check the Spring Boot console for details."}
         </Callout>
       )}
@@ -468,7 +508,10 @@ function JwtInspector() {
             <div className="jwt-panel jwt-panel-s">
               <div className="jwt-panel-head">Signature</div>
               <code className="sig-formula">
-                {decoded.header?.alg === "RS256" ? "RSASHA256" : "HMACSHA256"}(
+                {/^RS(\d+)$/.test(decoded.header?.alg || "")
+                  ? `RSASHA${decoded.header.alg.slice(2)}`
+                  : `HMACSHA${(decoded.header?.alg || "HS256").slice(2)}`}
+                (
                 <br />
                 &nbsp;&nbsp;base64url(header) + &quot;.&quot; +
                 <br />
@@ -666,7 +709,7 @@ function AuthFlow() {
     {
       label: "Login",
       steps: [
-        { icon: "key", t: "{ email, password }", s: "Browser" },
+        { icon: "key", t: "{ email | username, password }", s: "Browser" },
         { icon: "shield", t: "encoder.matches(pw, hash)", s: "AuthController" },
         { icon: "zap", t: "jwtService.generate(user)", s: "JwtService" },
         { icon: "unlock", t: "200 { token }", s: "Browser" },
@@ -782,8 +825,8 @@ export default function AuthTab() {
 
       <div className="grid grid-main">
         <Card title="API contract" subtitle="Routes this tab calls" icon="file">
-          <EndpointRow method="POST" path="/api/auth/register" desc="{ name, email, password } → { user }" status="201 / 400 / 409" />
-          <EndpointRow method="POST" path="/api/auth/login" desc="{ email, password } → { token, user }" status="200 / 401" />
+          <EndpointRow method="POST" path="/api/auth/register" desc="{ name, username, email, password } → { user }" status="201 / 400 / 409" />
+          <EndpointRow method="POST" path="/api/auth/login" desc="{ email | username, password } → { token, user }" status="200 / 400 / 401" />
           <EndpointRow method="POST" path="/api/auth/google" desc="{ credential } → { token, user }" status="200 / 401" />
           <EndpointRow method="DELETE" path="/api/projects/{id}" desc="Requires a valid JWT" auth status="200 / 401 / 404" />
           <div className="contract-note">
