@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import Icon from "./Icon";
 import PhaseTimer from "./PhaseTimer";
 import NetworkInspector from "./NetworkInspector";
@@ -9,7 +10,7 @@ import ArchitectureTab from "./tabs/ArchitectureTab";
 import CrudTab from "./tabs/CrudTab";
 import AuthTab from "./tabs/AuthTab";
 import DeployTab from "./tabs/DeployTab";
-import { PHASES, STORAGE_KEYS } from "@/lib/constants";
+import { HOST, PHASES, STORAGE_KEYS } from "@/lib/constants";
 import { CHECKLIST, CHECKLIST_TOTAL } from "@/lib/checklist";
 import { goToTab, useHash, useLocalStorage } from "@/lib/hooks";
 
@@ -32,7 +33,8 @@ const DB_PILL = {
 function StatusPills() {
   const { db, projects, isAuthed, user, decoded } = useWorkshop();
   const dbPill = DB_PILL[db.state];
-  const who = user?.name || user?.email || decoded?.payload?.name || decoded?.payload?.email;
+  const username = user?.username || decoded?.payload?.username;
+  const who = username ? `@${username}` : user?.name || user?.email || decoded?.payload?.name || decoded?.payload?.email;
 
   return (
     <div className="status-pills">
@@ -148,6 +150,15 @@ function Shell() {
           </div>
           <StatusPills />
           <PhaseTimer />
+          <Link href="/about" className="host-link" title={`About ${HOST.name}`}>
+            <span className="host-avatar" aria-hidden="true">
+              {HOST.initials}
+            </span>
+            <span className="host-text">
+              <small>Your host</small>
+              {HOST.name}
+            </span>
+          </Link>
         </div>
         <div className="container">
           <Tabs activeId={activeId} />
@@ -159,8 +170,12 @@ function Shell() {
       </main>
 
       <footer className="container footer">
-        Built for UTP CodeFest · Next.js UI + Spring Boot BFF, MongoDB Atlas &amp; JWT ·
-        Press <kbd className="kbd">1</kbd>–<kbd className="kbd">4</kbd> to switch phases
+        Built for UTP CodeFest by <Link href="/about">{HOST.name}</Link> ·{" "}
+        <a href={HOST.linkedin} target="_blank" rel="noopener noreferrer">
+          LinkedIn
+        </a>{" "}
+        · Next.js UI + Spring Boot BFF, MongoDB Atlas &amp; JWT · Press <kbd className="kbd">1</kbd>–
+        <kbd className="kbd">4</kbd> to switch phases
       </footer>
 
       <NetworkInspector />

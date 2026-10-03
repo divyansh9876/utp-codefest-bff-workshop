@@ -34,6 +34,7 @@ const CLAIM_NOTES = {
   exp: "Expires at (Unix seconds)",
   nbf: "Not valid before",
   email: "Custom claim",
+  username: "Custom claim: unique handle",
   name: "Custom claim",
   role: "Custom claim",
   provider: "How the user signed in",
@@ -147,6 +148,18 @@ function AuthForms() {
   if (isAuthed) {
     const who = { ...decoded?.payload, ...user };
     const provider = who.provider || "local";
+    const userId = who.id || who._id || who.sub;
+    const createdAt = who.createdAt ? new Date(who.createdAt) : null;
+    const expiresAt = decoded?.payload?.exp ? new Date(decoded.payload.exp * 1000) : null;
+    const fields = [
+      { label: "Name", value: who.name },
+      { label: "Username", value: who.username && `@${who.username}`, mono: true },
+      { label: "Email", value: who.email },
+      { label: "User ID", value: userId, mono: true, copy: true },
+      { label: "Provider", value: provider === "google" ? "Google" : "Local (email / username + password)" },
+      { label: "Member since", value: createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toLocaleString() : null },
+      { label: "Token expires", value: expiresAt?.toLocaleString() },
+    ];
     return (
       <Card title="Signed in" subtitle="JWT stored in this browser" icon="unlock" tone="success">
         <div className="signed-in">
@@ -171,6 +184,23 @@ function AuthForms() {
             {provider === "google" ? "via Google" : "via email"}
           </span>
         </div>
+        <dl className="profile-fields">
+          {fields.map((f) => (
+            <div key={f.label} className="profile-field">
+              <dt>{f.label}</dt>
+              <dd>
+                {f.value ? (
+                  <>
+                    <span className={f.mono ? "mono" : undefined}>{f.value}</span>
+                    {f.copy && <CopyButton text={String(f.value)} label="Copy" />}
+                  </>
+                ) : (
+                  <span className="muted">Not returned</span>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
         <Callout tone="info" title="Where's the token?">
           It&apos;s in <code>localStorage</code> so it survives refreshes, and is sent as{" "}
           <code>Authorization: Bearer &lt;token&gt;</code> on protected requests. In production, prefer an{" "}
@@ -700,7 +730,7 @@ function AuthFlow() {
     {
       label: "Register",
       steps: [
-        { icon: "user", t: "{ name, email, password }", s: "Browser" },
+        { icon: "user", t: "{ name, username, email, password }", s: "Browser" },
         { icon: "shield", t: "encoder.encode(pw)", s: "AuthController" },
         { icon: "database", t: "users.save(user)", s: "MongoDB" },
         { icon: "check", t: "201 { user } (no hash)", s: "Browser" },
