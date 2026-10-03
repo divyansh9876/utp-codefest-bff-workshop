@@ -3519,6 +3519,17 @@ input[type="range"] {
   font-size: 12px;
 }
 
+.avatar-photo {
+  display: block;
+  object-fit: cover;
+  object-position: center 30%;
+  border: 2px solid var(--surface);
+}
+
+.about-avatar.avatar-photo {
+  border-width: 4px;
+}
+
 .host-text {
   display: flex;
   flex-direction: column;

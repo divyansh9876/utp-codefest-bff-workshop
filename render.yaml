@@ -14,6 +14,14 @@ services:
         value: https://utp-codefest-bff.onrender.com
       - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
         sync: false
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://utp-codefest-bff-workshop.onrender.com
+      - key: NEXT_PUBLIC_CLARITY_ID
+        sync: false
+      - key: NEXT_PUBLIC_GA_ID
+        sync: false
+      - key: NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+        sync: false
 
   # Spring Boot BFF: uncomment once its repo exists (deployed from its Dockerfile).
   # - type: web

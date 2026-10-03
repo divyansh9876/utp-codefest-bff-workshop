@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import Icon from "./Icon";
 import PhaseTimer from "./PhaseTimer";
@@ -151,9 +152,7 @@ function Shell() {
           <StatusPills />
           <PhaseTimer />
           <Link href="/" className="host-link" title={`About ${HOST.name}`}>
-            <span className="host-avatar" aria-hidden="true">
-              {HOST.initials}
-            </span>
+            <Image src={HOST.photo} alt="" width={60} height={60} className="host-avatar avatar-photo" />
             <span className="host-text">
               <small>Your host</small>
               {HOST.name}

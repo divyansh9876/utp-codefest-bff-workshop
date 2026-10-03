@@ -1,7 +1,20 @@
+import Image from "next/image";
 import Link from "next/link";
 import Icon from "./Icon";
 import { Card } from "./ui";
-import { HOST, PHASES, TOTAL_MINUTES } from "@/lib/constants";
+import { HOST, PHASES, SITE_URL, TOTAL_MINUTES } from "@/lib/constants";
+
+const PERSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "Person",
+  name: HOST.name,
+  jobTitle: "Backend Engineer",
+  description: HOST.headline,
+  url: SITE_URL,
+  image: `${SITE_URL}${HOST.photo}`,
+  sameAs: [HOST.linkedin, HOST.github],
+  knowsAbout: ["Java", "Spring Boot", "MongoDB", "JWT", "REST APIs", "Backend-for-Frontend", "Docker"],
+};
 
 const NAV = [
   { href: "#about", label: "About" },
@@ -77,12 +90,14 @@ function External({ href, className, children }) {
 export default function Home() {
   return (
     <div className="app">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(PERSON_LD).replace(/</g, "\\u003c") }}
+      />
       <header className="topbar">
         <div className="container topbar-inner">
           <a href="#about" className="brand brand-link">
-            <span className="host-avatar brand-avatar" aria-hidden="true">
-              {HOST.initials}
-            </span>
+            <Image src={HOST.photo} alt="" width={72} height={72} className="host-avatar brand-avatar avatar-photo" priority />
             <span className="brand-text">
               <strong>{HOST.name}</strong>
               <span>{HOST.headline}</span>
@@ -104,9 +119,14 @@ export default function Home() {
 
       <main className="container main about">
         <section id="about" className="about-hero">
-          <div className="about-avatar" aria-hidden="true">
-            {HOST.initials}
-          </div>
+          <Image
+            src={HOST.photo}
+            alt={`Photo of ${HOST.name}`}
+            width={264}
+            height={264}
+            className="about-avatar avatar-photo"
+            priority
+          />
           <div className="about-intro">
             <span className="about-kicker">Hi, I&apos;m</span>
             <h1>{HOST.name}</h1>
