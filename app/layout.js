@@ -12,9 +12,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "UTP CodeFest · BFF Workshop",
+  title: "Divyansh Bhatt · Backend Engineer",
   description:
-    "Interactive Backend-for-Frontend workshop: Next.js Route Handlers, MongoDB Atlas, bcrypt + JWT auth, and secure deployment.",
+    "Divyansh Bhatt, Backend Engineer working with Java and Spring Boot. Projects, the UTP CodeFest BFF workshop, and how to get in touch.",
 };
 
 export default function RootLayout({ children }) {

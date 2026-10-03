@@ -1,4 +1,9 @@
-# UTP CodeFest · BFF Workshop
+# Divyansh Bhatt · Personal site + UTP CodeFest BFF Workshop
+
+The site has two parts:
+
+- `/`: my personal page (about, projects, speaking, [LinkedIn](https://www.linkedin.com/in/divyansh-bhatt-b65034133/)).
+- `/workshop`: the interactive BFF workshop described below.
 
 Interactive, pre-built **Next.js frontend** for a 2-hour **Backend-for-Frontend** workshop. The BFF itself is live-coded in **Java 21 + Spring Boot 4.1** with MongoDB Atlas, BCrypt, JWT and Google sign-in.
 
@@ -21,7 +26,7 @@ The browser only ever calls `/api/*` on the frontend's origin. `next.config.mjs`
 # Frontend (this repo)
 npm install
 cp .env.example .env.local      # BFF_URL, NEXT_PUBLIC_GOOGLE_CLIENT_ID
-npm run dev                     # http://localhost:3000
+npm run dev                     # http://localhost:3000 (workshop at /workshop)
 
 # Spring Boot BFF (separate folder, built during the workshop)
 ./mvnw spring-boot:run          # http://localhost:8080

@@ -150,7 +150,7 @@ function Shell() {
           </div>
           <StatusPills />
           <PhaseTimer />
-          <Link href="/about" className="host-link" title={`About ${HOST.name}`}>
+          <Link href="/" className="host-link" title={`About ${HOST.name}`}>
             <span className="host-avatar" aria-hidden="true">
               {HOST.initials}
             </span>
@@ -170,7 +170,7 @@ function Shell() {
       </main>
 
       <footer className="container footer">
-        Built for UTP CodeFest by <Link href="/about">{HOST.name}</Link> ·{" "}
+        Built for UTP CodeFest by <Link href="/">{HOST.name}</Link> ·{" "}
         <a href={HOST.linkedin} target="_blank" rel="noopener noreferrer">
           LinkedIn
         </a>{" "}

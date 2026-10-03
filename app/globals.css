@@ -3703,6 +3703,129 @@ input[type="range"] {
   background: var(--primary-50);
 }
 
+/* ---------- Personal site (home) --------------------------------------- */
+
+.brand-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+}
+
+.site-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.site-nav a {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.site-nav a:hover {
+  background: var(--surface-3);
+  text-decoration: none;
+}
+
+.about [id] {
+  scroll-margin-top: 84px;
+}
+
+.site-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+
+.work-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workshop-feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.workshop-feature-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.workshop-feature-intro .about-text {
+  font-size: 15px;
+}
+
+.workshop-phases {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workshop-phases a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.workshop-phases a:hover {
+  background: var(--primary-50);
+  border-color: var(--primary-100);
+}
+
+.workshop-phases a:hover .tab-num {
+  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.workshop-phase-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.workshop-phase-text small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 /* ---------- Responsive ------------------------------------------------- */
 
 @media (max-width: 1100px) {
@@ -3833,5 +3956,13 @@ input[type="range"] {
 
   .about-intro h1 {
     font-size: 30px;
+  }
+
+  .site-nav {
+    display: none;
+  }
+
+  .workshop-feature {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
